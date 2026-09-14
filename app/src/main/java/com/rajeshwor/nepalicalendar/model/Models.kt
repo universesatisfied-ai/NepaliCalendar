@@ -1,5 +1,15 @@
 package com.rajeshwor.nepalicalendar.model
 
-data class CalendarDay(val day:Int, val ad:String?=null, val holiday:Boolean=false, val festival:String?=null)
-data class Festival(val title:String, val bsDate:String, val adDate:String?=null, val holiday:Boolean=false)
-data class PersonalEvent(val id:Long, val title:String, val date:String, val notes:String="", val category:String="Personal")
+data class CalendarMonth(
+    val year: Int,
+    val month: Int,
+    val days: Int = 30
+)
+
+data class Event(
+    val id: Long = 0L,
+    val title: String,
+    val notes: String = "",
+    val date: String = "",
+    val category: String = "Personal"
+)
