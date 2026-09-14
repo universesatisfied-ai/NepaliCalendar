@@ -12,18 +12,57 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract project
+      - name: Extract project ZIP
+        shell: bash
         run: |
-          mkdir project
-          unzip -q *.zip -d project
-          PROJECT_DIR=$(dirname "$(find project -name settings.gradle -o -name settings.gradle.kts | head -1)")
+          set -e
+
+          mkdir -p project
+
+          ZIP_FILE=$(find . -maxdepth 1 -type f -name "*.zip" | head -1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: No project ZIP found."
+            exit 1
+          fi
+
+          echo "Using ZIP: $ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d project
+
+          SETTINGS_FILE=$(find project -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) | head -1)
+
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "ERROR: settings.gradle not found."
+            find project -maxdepth 3 -type f | head -100
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
+          echo "Project directory:"
+          echo "$PROJECT_DIR"
+
+      - name: Fix Kotlin plugin version
+        shell: bash
+        run: |
+          set -e
+
+          echo "Before:"
+          grep -n "kotlin.android" "$PROJECT_DIR/build.gradle" || true
+
+          sed -i "s/version: '1.9.2'/version: '2.0.21'/g" "$PROJECT_DIR/build.gradle"
+          sed -i 's/version: "1.9.2"/version: "2.0.21"/g' "$PROJECT_DIR/build.gradle"
+
+          echo "After:"
+          grep -n "kotlin.android" "$PROJECT_DIR/build.gradle" || true
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -33,8 +72,12 @@ jobs:
         with:
           gradle-version: "8.10"
 
-      - name: Build APK
+      - name: Build Debug APK
+        shell: bash
         run: |
+          set -e
+
+          echo "Building project..."
           gradle -p "$PROJECT_DIR" assembleDebug --no-daemon
 
       - name: Upload APK
@@ -42,3 +85,4 @@ jobs:
         with:
           name: Nepali-Calendar-APK
           path: "${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk"
+          if-no-files-found: error
