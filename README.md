@@ -1,14 +1,20 @@
 # Nepali Calendar
 
-Compose + stable Material 3 Android app foundation for Nepali Calendar.
+Android app built with Jetpack Compose and Material 3.
 
-- Developer: Rajeshwor Maharjan
-- Min Android: 7.0 / API 24
-- Target SDK: 35
-- Responsive UI for phones/tablets/foldables
-- Edge-to-edge and safe drawing insets for gesture and button navigation
-- APIs configured for calendar and date conversion
-- GitHub Actions debug APK build
+Developer: Rajeshwor Maharjan
 
-## GitHub build
-Upload the project root to the repository and run **Actions → Build Nepali Calendar APK**.
+## Current step
+
+Calendar screen foundation with:
+- BS month/year navigation
+- API-backed monthly calendar loading
+- BS date grid
+- AD date/festival/tithi details
+- holiday/Saturday styling
+- selected-date details
+- Today button
+
+## Build
+
+GitHub Actions builds the debug APK automatically on push to `main` or `master`.
