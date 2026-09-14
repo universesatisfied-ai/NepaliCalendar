@@ -4,7 +4,6 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.ClipData
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -93,130 +93,65 @@ private val weekNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
 
 @Composable fun CalendarGrid(data:CalendarMonth,selected:Int,onSelect:(Int)->Unit){val cells=List(data.startWeekday){null}+data.entries;LazyVerticalGrid(GridCells.Fixed(7),Modifier.padding(horizontal=12.dp).height(300.dp)){gridItems(cells){e->if(e==null)Box(Modifier.height(42.dp))else{val holiday=e.holiday||e.weekday==6;Box(Modifier.padding(2.dp).height(42.dp).fillMaxWidth().clickable{onSelect(e.day)},contentAlignment=Alignment.Center){Surface(shape=RoundedCornerShape(12.dp),color=when{selected==e.day->MaterialTheme.colorScheme.primary;holiday->MaterialTheme.colorScheme.errorContainer;else->MaterialTheme.colorScheme.surfaceVariant}){Column(Modifier.padding(horizontal=8.dp,vertical=5.dp),horizontalAlignment=Alignment.CenterHorizontally){Text("${e.day}",fontWeight=FontWeight.Bold,color=if(selected==e.day)MaterialTheme.colorScheme.onPrimary else Color.Unspecified);if(e.festival.isNotBlank())Text("•",color=MaterialTheme.colorScheme.tertiary)}}}}}}}
 
-@Composable fun Festivals(){
-    val api=remember{ApiClient()}; val scope=rememberCoroutineScope()
-    var year by remember{mutableIntStateOf(2083)}; var festivals by remember{mutableStateOf<List<FestivalItem>>(emptyList())}
-    var loading by remember{mutableStateOf(false)}; var error by remember{mutableStateOf("")}; var query by remember{mutableStateOf("")}; var holidaysOnly by remember{mutableStateOf(false)}
-    LaunchedEffect(year){ loading=true; error=""; try{
-        val out=mutableListOf<FestivalItem>()
-        for(m in 1..12){
-            try{
-                val raw=api.month(year,m); val firstAd=try{extractIsoDate(api.bsToAd(year,m,1))}catch(_:Throwable){null}
-                val month=parseCalendar(year,m,raw,firstAd)
-                month.entries.filter{it.festival.isNotBlank()}.forEach{d->out.add(FestivalItem(d.festival,"${d.day} ${monthNames[m-1]} $year",d.ad,d.holiday))}
-            }catch(_:Throwable){}
-        }
-        festivals=out.distinctBy{"${it.bsDate}|${it.name}"}
-        if(festivals.isEmpty()) error="No festival data available. Check your internet connection."
-    }catch(_:Throwable){error="Could not load festivals. Check your internet connection."} finally{loading=false} }
-    val filtered=festivals.filter{(!holidaysOnly||it.holiday||it.name.isNotBlank()) && (query.isBlank()||it.name.contains(query,true)||it.bsDate.contains(query,true)||it.adDate.contains(query,true))}
+@Composable fun Festivals(){val festivals=listOf("Nepali New Year" to "1 Baisakh","Buddha Jayanti" to "Baisakh","Teej" to "Bhadra","Constitution Day" to "3 Ashwin","Dashain" to "Ashwin–Kartik","Tihar" to "Kartik","Chhath Parva" to "Kartik","Holi" to "Falgun");Column(Modifier.fillMaxSize()){BrandHeader("Festivals & Holidays","Plan important Nepali dates");LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){columnItems(festivals){(n,d)->Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)){Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.Event,null);Spacer(Modifier.width(14.dp));Column{Text(n,style=MaterialTheme.typography.titleMedium);Text(d,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}}}}
+
+@Composable fun Converter(){val api=remember{ApiClient()};val scope=rememberCoroutineScope();var bs by remember{mutableStateOf("")};var ad by remember{mutableStateOf("")};var bsToAd by remember{mutableStateOf(true)};var result by remember{mutableStateOf("")};var busy by remember{mutableStateOf(false)};Column(Modifier.fillMaxSize()){BrandHeader("Date Converter","Bikram Sambat ↔ Gregorian");Card(Modifier.padding(16.dp).fillMaxWidth(),shape=RoundedCornerShape(26.dp)){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){Text(if(bsToAd)"BS → AD" else "AD → BS",style=MaterialTheme.typography.titleLarge);OutlinedTextField(if(bsToAd)bs else ad,{if(bsToAd)bs=it else ad=it},Modifier.fillMaxWidth(),label={Text(if(bsToAd)"BS date: YYYY-MM-DD" else "AD date: YYYY-MM-DD")},singleLine=true);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button({scope.launch{busy=true;result=try{val p=(if(bsToAd)bs else ad).trim().split("-").map{it.toInt()};val r=if(bsToAd)api.bsToAd(p[0],p[1],p[2])else api.adToBs(p[0],p[1],p[2]);extractSummary(r)}catch(e:Throwable){"Invalid date or network error"};busy=false}}){if(busy)CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp)else Text("Convert")};OutlinedButton({bsToAd=!bsToAd;result=""}){Icon(Icons.Outlined.SwapHoriz,null);Text("Swap")};TextButton({bs="";ad="";result=""}){Text("Clear")}};if(result.isNotBlank())Card(Modifier.fillMaxWidth()){Text(result,Modifier.padding(16.dp),style=MaterialTheme.typography.titleMedium)}}}}
+
+@Composable fun More(){
+    val context=LocalContext.current
+    var show by remember{mutableStateOf(false)}
+    var editing by remember{mutableStateOf<Event?>(null)}
+    var events by remember{mutableStateOf(loadEvents(context))}
     Column(Modifier.fillMaxSize()){
-        BrandHeader("Festivals & Holidays","Official calendar events from the API")
-        Row(Modifier.padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically){IconButton({year--}){Icon(Icons.Outlined.ChevronLeft,null)};Text("$year",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge,textAlign=androidx.compose.ui.text.style.TextAlign.Center);IconButton({year++}){Icon(Icons.Outlined.ChevronRight,null)}}
-        OutlinedTextField(query,{query=it},Modifier.padding(horizontal=16.dp).fillMaxWidth(),label={Text("Search festivals")},singleLine=true,leadingIcon={Icon(Icons.Outlined.Search,null)})
-        Row(Modifier.padding(horizontal=16.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically){FilterChip(selected=holidaysOnly,onClick={holidaysOnly=!holidaysOnly},label={Text("Public holidays only")});Spacer(Modifier.weight(1f));if(loading)CircularProgressIndicator(Modifier.size(20.dp),strokeWidth=2.dp)}
-        if(error.isNotBlank())Text(error,Modifier.padding(horizontal=16.dp,vertical=8.dp),color=MaterialTheme.colorScheme.error)
+        BrandHeader("More","Settings, events & information")
         LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
-            if(!loading&&filtered.isEmpty()&&error.isBlank())item{Text("No matching festivals found.",color=MaterialTheme.colorScheme.onSurfaceVariant)}
-            columnItems(filtered){f->Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)){Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){Icon(if(f.holiday)Icons.Outlined.EventAvailable else Icons.Outlined.Event,null);Spacer(Modifier.width(14.dp));Column(Modifier.weight(1f)){Text(f.name,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold);Text("BS ${f.bsDate}",color=MaterialTheme.colorScheme.primary);if(f.adDate.isNotBlank())Text("AD ${f.adDate}",color=MaterialTheme.colorScheme.onSurfaceVariant)};if(f.holiday)Text("Holiday",color=MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)}}}}
+            item{ActionCard("Personal events","+"){editing=null;show=true}}
+            item{Text("Saved events",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=10.dp))}
+            if(events.isEmpty()) item{Text("No personal events yet.",color=MaterialTheme.colorScheme.onSurfaceVariant)}
+            columnItems(events.sortedBy{it.date}){e->
+                Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(20.dp)){
+                    Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){
+                        Column(Modifier.weight(1f)){
+                            Text(e.title,fontWeight=FontWeight.Bold)
+                            Text("${e.date}${if(e.time.isNotBlank())" • ${e.time}" else ""}",color=MaterialTheme.colorScheme.primary)
+                            Text(e.category,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            if(e.notes.isNotBlank())Text(e.notes,maxLines=2,overflow=TextOverflow.Ellipsis)
+                        }
+                        IconButton({editing=e;show=true}){Icon(Icons.Outlined.Edit,null,contentDescription="Edit event")}
+                        IconButton({events=events.filterNot{it.id==e.id};saveEvents(context,events)}){Icon(Icons.Outlined.Delete,null,contentDescription="Delete event")}
+                    }
+                }
+            }
+            item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(18.dp)){Text("Nepali Calendar",style=MaterialTheme.typography.titleLarge);Text("Developed by Rajeshwor Maharjan");Text("Jetpack Compose + Material 3",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
         }
     }
+    if(show){EventDialog(initial=editing,onSave={e->
+        events=if(events.any{it.id==e.id})events.map{if(it.id==e.id)e else it}else events+e
+        saveEvents(context,events);show=false
+    },onDismiss={show=false})}
 }
 
-@Composable fun Converter(){
-    val api=remember{ApiClient()}
-    val scope=rememberCoroutineScope()
-    val context=androidx.compose.ui.platform.LocalContext.current
-    var bs by remember{mutableStateOf("2083-06-01")}
-    var ad by remember{mutableStateOf("2026-09-14")}
-    var bsToAd by remember{mutableStateOf(true)}
-    var result by remember{mutableStateOf("")}
+@Composable fun EventDialog(initial:Event?,onSave:(Event)->Unit,onDismiss:()->Unit){
+    var title by remember(initial){mutableStateOf(initial?.title? : "")}
+    var date by remember(initial){mutableStateOf(initial?.date ?: "2083-06-01")}
+    var time by remember(initial){mutableStateOf(initial?.time ?: "")}
+    var notes by remember(initial){mutableStateOf(initial?.notes ?: "")}
+    var category by remember(initial){mutableStateOf(initial?.category ?: "Personal")}
     var error by remember{mutableStateOf("")}
-    var busy by remember{mutableStateOf(false)}
-    Column(Modifier.fillMaxSize()){
-        BrandHeader("Date Converter","Bikram Sambat ↔ Gregorian")
-        Card(Modifier.padding(16.dp).fillMaxWidth(),shape=RoundedCornerShape(26.dp)){
-            Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-                Text(if(bsToAd)"BS → AD" else "AD → BS",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
-                Text(if(bsToAd)"Convert a Bikram Sambat date to Gregorian." else "Convert a Gregorian date to Bikram Sambat.",color=MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedTextField(
-                    value=if(bsToAd)bs else ad,
-                    onValueChange={if(bsToAd)bs=it else ad=it;error="";result=""},
-                    modifier=Modifier.fillMaxWidth(),
-                    label={Text(if(bsToAd)"BS date" else "AD date")},
-                    supportingText={Text("Format: YYYY-MM-DD")},
-                    singleLine=true
-                )
-                if(error.isNotBlank()) Text(error,color=MaterialTheme.colorScheme.error)
-                Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically){
-                    Button(onClick={
-                        scope.launch{
-                            busy=true;error="";result=""
-                            try{
-                                val parts=(if(bsToAd)bs else ad).trim().split("-")
-                                if(parts.size!=3) throw IllegalArgumentException()
-                                val nums=parts.map{it.toInt()}
-                                if(nums.any{it<0}) throw IllegalArgumentException()
-                                val raw=if(bsToAd)api.bsToAd(nums[0],nums[1],nums[2])else api.adToBs(nums[0],nums[1],nums[2])
-                                result=parseConversionResult(raw,bsToAd)
-                                if(result.isBlank()) throw IllegalStateException()
-                            }catch(_:NumberFormatException){error="Enter a valid date in YYYY-MM-DD format."}
-                            catch(_:IllegalArgumentException){error="Enter a valid date in YYYY-MM-DD format."}
-                            catch(_:Throwable){error="Could not convert this date. Check the date and your internet connection."}
-                            busy=false
-                        }
-                    },enabled=!busy){
-                        if(busy)CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp) else Text("Convert")
-                    }
-                    OutlinedButton(onClick={bsToAd=!bsToAd;result="";error=""}){Icon(Icons.Outlined.SwapHoriz,null);Spacer(Modifier.width(4.dp));Text("Swap")}
-                    TextButton(onClick={bs="";ad="";result="";error=""}){Text("Clear")}
-                }
-                if(result.isNotBlank()){
-                    Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer)){
-                        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
-                            Text("Result",fontWeight=FontWeight.Bold)
-                            Text(result,style=MaterialTheme.typography.headlineSmall)
-                            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                                OutlinedButton(onClick={
-                                    val clip=ClipData.newPlainText("Nepali Calendar date",result)
-                                    (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(clip)
-                                }){Icon(Icons.Outlined.ContentCopy,null);Spacer(Modifier.width(4.dp));Text("Copy")}
-                                OutlinedButton(onClick={
-                                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="text/plain";putExtra(Intent.EXTRA_TEXT,result)},"Share date"))
-                                }){Icon(Icons.Outlined.Share,null);Spacer(Modifier.width(4.dp));Text("Share")}
-                            }
-                        }
-                    }
-                }
-            }
+    AlertDialog(onDismissRequest=onDismiss,title={Text(if(initial==null)"Add event" else "Edit event")},text={
+        Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
+            OutlinedTextField(title,{title=it},label={Text("Title")},singleLine=true)
+            OutlinedTextField(date,{date=it},label={Text("BS date: YYYY-MM-DD")},singleLine=true)
+            OutlinedTextField(time,{time=it},label={Text("Time (optional)")},singleLine=true)
+            OutlinedTextField(category,{category=it},label={Text("Category")},singleLine=true)
+            OutlinedTextField(notes,{notes=it},label={Text("Notes")},minLines=2)
+            if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error)
         }
-    }
+    },confirmButton={Button({
+        val valid=title.isNotBlank() && Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(date.trim())
+        if(valid)onSave(Event(initial?.id ?: System.currentTimeMillis(),title.trim(),notes.trim(),date.trim(),time.trim(),category.trim().ifBlank{"Personal"},initial?.color ?: 0xFF18251DL,initial?.reminder ?: false)) else error="Enter a title and a valid BS date (YYYY-MM-DD)."
+    }){Text("Save")}},dismissButton={TextButton(onDismiss){Text("Cancel")}})
 }
-@Composable fun More(){var show by remember{mutableStateOf(false)};var dark by remember{mutableStateOf(false)};var events by remember{mutableStateOf(loadEvents())};Column(Modifier.fillMaxSize()){BrandHeader("More","Settings, events & information");LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){item{ActionCard("Personal events","+"){show=true}};item{Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)){Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.DarkMode,null);Text("Dark theme",Modifier.weight(1f).padding(start=14.dp));Switch(dark,{dark=it})}}};item{Text("Saved events",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=10.dp))};columnItems(events){e->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(16.dp)){Column(Modifier.weight(1f)){Text(e.title,fontWeight=FontWeight.Bold);Text("${e.date} ${e.time}",color=MaterialTheme.colorScheme.primary);if(e.notes.isNotBlank())Text(e.notes,maxLines=2,overflow=TextOverflow.Ellipsis)}};IconButton({events=events.filterNot{it.id==e.id};saveEvents(events)}){Icon(Icons.Outlined.Delete,null)}}};item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(18.dp)){Text("Nepali Calendar",style=MaterialTheme.typography.titleLarge);Text("Developed by Rajeshwor Maharjan");Text("Jetpack Compose + Material 3",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}};if(show){EventDialog({e->events=events+e;saveEvents(events);show=false},{show=false})}}}
-
-@Composable fun EventDialog(onSave:(Event)->Unit,onDismiss:()->Unit){var title by remember{mutableStateOf("")};var date by remember{mutableStateOf("2083-06-01")};var notes by remember{mutableStateOf("")};AlertDialog(onDismissRequest=onDismiss,title={Text("Add event")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(title,{title=it},label={Text("Title")},singleLine=true);OutlinedTextField(date,{date=it},label={Text("BS date")},singleLine=true);OutlinedTextField(notes,{notes=it},label={Text("Notes")})}},confirmButton={Button({if(title.isNotBlank())onSave(Event(System.currentTimeMillis(),title,notes,date))}){Text("Save")}},dismissButton={TextButton(onDismiss){Text("Cancel")}})}
-
-private fun parseConversionResult(raw:String,bsToAd:Boolean):String{
-    val o=try{JSONObject(raw)}catch(_:Throwable){return extractIsoDate(raw) ?: raw.trim().takeIf{it.isNotBlank()} ?: ""}
-    fun find(v:Any?,vararg keys:String):String{
-        when(v){
-            is JSONObject->{
-                for(k in keys){val value=v.optString(k);if(value.isNotBlank())return value}
-                val it=v.keys();while(it.hasNext()){val r=find(v.get(it.next()),*keys);if(r.isNotBlank())return r}
-            }
-            is JSONArray->for(i in 0 until v.length()){val r=find(v.get(i),*keys);if(r.isNotBlank())return r}
-        }
-        return ""
-    }
-    return if(bsToAd){
-        find(o,"formatted").ifBlank{find(o,"date").ifBlank{extractIsoDate(raw).orEmpty()}}
-    }else{
-        find(o,"formatted").ifBlank{find(o,"date").ifBlank{
-            val y=find(o,"year");val m=find(o,"month");val d=find(o,"day");if(y.isNotBlank()&&m.isNotBlank()&&d.isNotBlank())"$y-${m.padStart(2,'0')}-${d.padStart(2,'0')}" else ""
-        }}
-    }
-}
-
 private fun parseCalendar(year:Int,month:Int,raw:String,firstAd:String?):CalendarMonth{
     val arr=mutableListOf<CalendarDay>()
     val root:Any?=try{JSONObject(raw)}catch(_:Throwable){try{JSONArray(raw)}catch(_:Throwable){null}}
@@ -274,5 +209,18 @@ private fun addDays(iso:String,days:Int):String{
 
 private fun extractSummary(raw:String):String{if(raw.isBlank())return "Unavailable";return try{val o=JSONObject(raw);listOf("formatted","bs","date","nepali","today").firstNotNullOfOrNull{key->o.optString(key).takeIf{it.isNotBlank()}}?:o.toString().replace("\\n"," ").take(220)}catch(_:Throwable){raw.replace("\\n"," ").take(220)}}
 private fun prefs(ctx:Context)=ctx.getSharedPreferences("events",Context.MODE_PRIVATE)
-private fun loadEvents():List<Event>{return emptyList()}
-private fun saveEvents(e:List<Event>){ }
+private fun loadEvents(ctx:Context):List<Event>{
+    val raw=prefs(ctx).getString("items","[]") ?: "[]"
+    return try{
+        val a=JSONArray(raw)
+        (0 until a.length()).mapNotNull{ i->
+            val o=a.optJSONObject(i) ?: return@mapNotNull null
+            Event(o.optLong("id"),o.optString("title"),o.optString("notes"),o.optString("date"),o.optString("time"),o.optString("category","Personal"),o.optLong("color",0xFF18251DL),o.optBoolean("reminder",false))
+        }
+    }catch(_:Throwable){emptyList()}
+}
+private fun saveEvents(ctx:Context,e:List<Event>){
+    val a=JSONArray()
+    e.forEach{v->a.put(JSONObject().apply{put("id",v.id);put("title",v.title);put("notes",v.notes);put("date",v.date);put("time",v.time);put("category",v.category);put("color",v.color);put("reminder",v.reminder)})}
+    prefs(ctx).edit().putString("items",a.toString()).apply()
+}
