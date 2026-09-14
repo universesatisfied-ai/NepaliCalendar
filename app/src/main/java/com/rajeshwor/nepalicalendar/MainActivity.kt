@@ -93,7 +93,35 @@ private val weekNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
 
 @Composable fun CalendarGrid(data:CalendarMonth,selected:Int,onSelect:(Int)->Unit){val cells=List(data.startWeekday){null}+data.entries;LazyVerticalGrid(GridCells.Fixed(7),Modifier.padding(horizontal=12.dp).height(300.dp)){gridItems(cells){e->if(e==null)Box(Modifier.height(42.dp))else{val holiday=e.holiday||e.weekday==6;Box(Modifier.padding(2.dp).height(42.dp).fillMaxWidth().clickable{onSelect(e.day)},contentAlignment=Alignment.Center){Surface(shape=RoundedCornerShape(12.dp),color=when{selected==e.day->MaterialTheme.colorScheme.primary;holiday->MaterialTheme.colorScheme.errorContainer;else->MaterialTheme.colorScheme.surfaceVariant}){Column(Modifier.padding(horizontal=8.dp,vertical=5.dp),horizontalAlignment=Alignment.CenterHorizontally){Text("${e.day}",fontWeight=FontWeight.Bold,color=if(selected==e.day)MaterialTheme.colorScheme.onPrimary else Color.Unspecified);if(e.festival.isNotBlank())Text("•",color=MaterialTheme.colorScheme.tertiary)}}}}}}}
 
-@Composable fun Festivals(){val festivals=listOf("Nepali New Year" to "1 Baisakh","Buddha Jayanti" to "Baisakh","Teej" to "Bhadra","Constitution Day" to "3 Ashwin","Dashain" to "Ashwin–Kartik","Tihar" to "Kartik","Chhath Parva" to "Kartik","Holi" to "Falgun");Column(Modifier.fillMaxSize()){BrandHeader("Festivals & Holidays","Plan important Nepali dates");LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){columnItems(festivals){(n,d)->Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)){Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.Event,null);Spacer(Modifier.width(14.dp));Column{Text(n,style=MaterialTheme.typography.titleMedium);Text(d,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}}}}
+@Composable fun Festivals(){
+    val api=remember{ApiClient()}; val scope=rememberCoroutineScope()
+    var year by remember{mutableIntStateOf(2083)}; var festivals by remember{mutableStateOf<List<FestivalItem>>(emptyList())}
+    var loading by remember{mutableStateOf(false)}; var error by remember{mutableStateOf("")}; var query by remember{mutableStateOf("")}; var holidaysOnly by remember{mutableStateOf(false)}
+    LaunchedEffect(year){ loading=true; error=""; try{
+        val out=mutableListOf<FestivalItem>()
+        for(m in 1..12){
+            try{
+                val raw=api.month(year,m); val firstAd=try{extractIsoDate(api.bsToAd(year,m,1))}catch(_:Throwable){null}
+                val month=parseCalendar(year,m,raw,firstAd)
+                month.entries.filter{it.festival.isNotBlank()}.forEach{d->out.add(FestivalItem(d.festival,"${d.day} ${monthNames[m-1]} $year",d.ad,d.holiday))}
+            }catch(_:Throwable){}
+        }
+        festivals=out.distinctBy{"${it.bsDate}|${it.name}"}
+        if(festivals.isEmpty()) error="No festival data available. Check your internet connection."
+    }catch(_:Throwable){error="Could not load festivals. Check your internet connection."} finally{loading=false} }
+    val filtered=festivals.filter{(!holidaysOnly||it.holiday||it.name.isNotBlank()) && (query.isBlank()||it.name.contains(query,true)||it.bsDate.contains(query,true)||it.adDate.contains(query,true))}
+    Column(Modifier.fillMaxSize()){
+        BrandHeader("Festivals & Holidays","Official calendar events from the API")
+        Row(Modifier.padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically){IconButton({year--}){Icon(Icons.Outlined.ChevronLeft,null)};Text("$year",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge,textAlign=androidx.compose.ui.text.style.TextAlign.Center);IconButton({year++}){Icon(Icons.Outlined.ChevronRight,null)}}
+        OutlinedTextField(query,{query=it},Modifier.padding(horizontal=16.dp).fillMaxWidth(),label={Text("Search festivals")},singleLine=true,leadingIcon={Icon(Icons.Outlined.Search,null)})
+        Row(Modifier.padding(horizontal=16.dp,vertical=6.dp),verticalAlignment=Alignment.CenterVertically){FilterChip(selected=holidaysOnly,onClick={holidaysOnly=!holidaysOnly},label={Text("Public holidays only")});Spacer(Modifier.weight(1f));if(loading)CircularProgressIndicator(Modifier.size(20.dp),strokeWidth=2.dp)}
+        if(error.isNotBlank())Text(error,Modifier.padding(horizontal=16.dp,vertical=8.dp),color=MaterialTheme.colorScheme.error)
+        LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+            if(!loading&&filtered.isEmpty()&&error.isBlank())item{Text("No matching festivals found.",color=MaterialTheme.colorScheme.onSurfaceVariant)}
+            columnItems(filtered){f->Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)){Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){Icon(if(f.holiday)Icons.Outlined.EventAvailable else Icons.Outlined.Event,null);Spacer(Modifier.width(14.dp));Column(Modifier.weight(1f)){Text(f.name,style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold);Text("BS ${f.bsDate}",color=MaterialTheme.colorScheme.primary);if(f.adDate.isNotBlank())Text("AD ${f.adDate}",color=MaterialTheme.colorScheme.onSurfaceVariant)};if(f.holiday)Text("Holiday",color=MaterialTheme.colorScheme.error,fontWeight=FontWeight.Bold)}}}}
+        }
+    }
+}
 
 @Composable fun Converter(){
     val api=remember{ApiClient()}
