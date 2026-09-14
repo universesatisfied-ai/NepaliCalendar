@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.ClipData
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -94,11 +95,99 @@ private val weekNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
 
 @Composable fun Festivals(){val festivals=listOf("Nepali New Year" to "1 Baisakh","Buddha Jayanti" to "Baisakh","Teej" to "Bhadra","Constitution Day" to "3 Ashwin","Dashain" to "Ashwin–Kartik","Tihar" to "Kartik","Chhath Parva" to "Kartik","Holi" to "Falgun");Column(Modifier.fillMaxSize()){BrandHeader("Festivals & Holidays","Plan important Nepali dates");LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){columnItems(festivals){(n,d)->Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)){Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.Event,null);Spacer(Modifier.width(14.dp));Column{Text(n,style=MaterialTheme.typography.titleMedium);Text(d,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}}}}
 
-@Composable fun Converter(){val api=remember{ApiClient()};val scope=rememberCoroutineScope();var bs by remember{mutableStateOf("")};var ad by remember{mutableStateOf("")};var bsToAd by remember{mutableStateOf(true)};var result by remember{mutableStateOf("")};var busy by remember{mutableStateOf(false)};Column(Modifier.fillMaxSize()){BrandHeader("Date Converter","Bikram Sambat ↔ Gregorian");Card(Modifier.padding(16.dp).fillMaxWidth(),shape=RoundedCornerShape(26.dp)){Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){Text(if(bsToAd)"BS → AD" else "AD → BS",style=MaterialTheme.typography.titleLarge);OutlinedTextField(if(bsToAd)bs else ad,{if(bsToAd)bs=it else ad=it},Modifier.fillMaxWidth(),label={Text(if(bsToAd)"BS date: YYYY-MM-DD" else "AD date: YYYY-MM-DD")},singleLine=true);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Button({scope.launch{busy=true;result=try{val p=(if(bsToAd)bs else ad).trim().split("-").map{it.toInt()};val r=if(bsToAd)api.bsToAd(p[0],p[1],p[2])else api.adToBs(p[0],p[1],p[2]);extractSummary(r)}catch(e:Throwable){"Invalid date or network error"};busy=false}}){if(busy)CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp)else Text("Convert")};OutlinedButton({bsToAd=!bsToAd;result=""}){Icon(Icons.Outlined.SwapHoriz,null);Text("Swap")};TextButton({bs="";ad="";result=""}){Text("Clear")}};if(result.isNotBlank())Card(Modifier.fillMaxWidth()){Text(result,Modifier.padding(16.dp),style=MaterialTheme.typography.titleMedium)}}}}
-
+@Composable fun Converter(){
+    val api=remember{ApiClient()}
+    val scope=rememberCoroutineScope()
+    val context=androidx.compose.ui.platform.LocalContext.current
+    var bs by remember{mutableStateOf("2083-06-01")}
+    var ad by remember{mutableStateOf("2026-09-14")}
+    var bsToAd by remember{mutableStateOf(true)}
+    var result by remember{mutableStateOf("")}
+    var error by remember{mutableStateOf("")}
+    var busy by remember{mutableStateOf(false)}
+    Column(Modifier.fillMaxSize()){
+        BrandHeader("Date Converter","Bikram Sambat ↔ Gregorian")
+        Card(Modifier.padding(16.dp).fillMaxWidth(),shape=RoundedCornerShape(26.dp)){
+            Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+                Text(if(bsToAd)"BS → AD" else "AD → BS",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+                Text(if(bsToAd)"Convert a Bikram Sambat date to Gregorian." else "Convert a Gregorian date to Bikram Sambat.",color=MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value=if(bsToAd)bs else ad,
+                    onValueChange={if(bsToAd)bs=it else ad=it;error="";result=""},
+                    modifier=Modifier.fillMaxWidth(),
+                    label={Text(if(bsToAd)"BS date" else "AD date")},
+                    supportingText={Text("Format: YYYY-MM-DD")},
+                    singleLine=true
+                )
+                if(error.isNotBlank()) Text(error,color=MaterialTheme.colorScheme.error)
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=Alignment.CenterVertically){
+                    Button(onClick={
+                        scope.launch{
+                            busy=true;error="";result=""
+                            try{
+                                val parts=(if(bsToAd)bs else ad).trim().split("-")
+                                if(parts.size!=3) throw IllegalArgumentException()
+                                val nums=parts.map{it.toInt()}
+                                if(nums.any{it<0}) throw IllegalArgumentException()
+                                val raw=if(bsToAd)api.bsToAd(nums[0],nums[1],nums[2])else api.adToBs(nums[0],nums[1],nums[2])
+                                result=parseConversionResult(raw,bsToAd)
+                                if(result.isBlank()) throw IllegalStateException()
+                            }catch(_:NumberFormatException){error="Enter a valid date in YYYY-MM-DD format."}
+                            catch(_:IllegalArgumentException){error="Enter a valid date in YYYY-MM-DD format."}
+                            catch(_:Throwable){error="Could not convert this date. Check the date and your internet connection."}
+                            busy=false
+                        }
+                    },enabled=!busy){
+                        if(busy)CircularProgressIndicator(Modifier.size(18.dp),strokeWidth=2.dp) else Text("Convert")
+                    }
+                    OutlinedButton(onClick={bsToAd=!bsToAd;result="";error=""}){Icon(Icons.Outlined.SwapHoriz,null);Spacer(Modifier.width(4.dp));Text("Swap")}
+                    TextButton(onClick={bs="";ad="";result="";error=""}){Text("Clear")}
+                }
+                if(result.isNotBlank()){
+                    Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.primaryContainer)){
+                        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
+                            Text("Result",fontWeight=FontWeight.Bold)
+                            Text(result,style=MaterialTheme.typography.headlineSmall)
+                            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+                                OutlinedButton(onClick={
+                                    val clip=ClipData.newPlainText("Nepali Calendar date",result)
+                                    (context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager).setPrimaryClip(clip)
+                                }){Icon(Icons.Outlined.ContentCopy,null);Spacer(Modifier.width(4.dp));Text("Copy")}
+                                OutlinedButton(onClick={
+                                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="text/plain";putExtra(Intent.EXTRA_TEXT,result)},"Share date"))
+                                }){Icon(Icons.Outlined.Share,null);Spacer(Modifier.width(4.dp));Text("Share")}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 @Composable fun More(){var show by remember{mutableStateOf(false)};var dark by remember{mutableStateOf(false)};var events by remember{mutableStateOf(loadEvents())};Column(Modifier.fillMaxSize()){BrandHeader("More","Settings, events & information");LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){item{ActionCard("Personal events","+"){show=true}};item{Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)){Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.DarkMode,null);Text("Dark theme",Modifier.weight(1f).padding(start=14.dp));Switch(dark,{dark=it})}}};item{Text("Saved events",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=10.dp))};columnItems(events){e->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(16.dp)){Column(Modifier.weight(1f)){Text(e.title,fontWeight=FontWeight.Bold);Text("${e.date} ${e.time}",color=MaterialTheme.colorScheme.primary);if(e.notes.isNotBlank())Text(e.notes,maxLines=2,overflow=TextOverflow.Ellipsis)}};IconButton({events=events.filterNot{it.id==e.id};saveEvents(events)}){Icon(Icons.Outlined.Delete,null)}}};item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(18.dp)){Text("Nepali Calendar",style=MaterialTheme.typography.titleLarge);Text("Developed by Rajeshwor Maharjan");Text("Jetpack Compose + Material 3",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}};if(show){EventDialog({e->events=events+e;saveEvents(events);show=false},{show=false})}}}
 
 @Composable fun EventDialog(onSave:(Event)->Unit,onDismiss:()->Unit){var title by remember{mutableStateOf("")};var date by remember{mutableStateOf("2083-06-01")};var notes by remember{mutableStateOf("")};AlertDialog(onDismissRequest=onDismiss,title={Text("Add event")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(title,{title=it},label={Text("Title")},singleLine=true);OutlinedTextField(date,{date=it},label={Text("BS date")},singleLine=true);OutlinedTextField(notes,{notes=it},label={Text("Notes")})}},confirmButton={Button({if(title.isNotBlank())onSave(Event(System.currentTimeMillis(),title,notes,date))}){Text("Save")}},dismissButton={TextButton(onDismiss){Text("Cancel")}})}
+
+private fun parseConversionResult(raw:String,bsToAd:Boolean):String{
+    val o=try{JSONObject(raw)}catch(_:Throwable){return extractIsoDate(raw) ?: raw.trim().takeIf{it.isNotBlank()} ?: ""}
+    fun find(v:Any?,vararg keys:String):String{
+        when(v){
+            is JSONObject->{
+                for(k in keys){val value=v.optString(k);if(value.isNotBlank())return value}
+                val it=v.keys();while(it.hasNext()){val r=find(v.get(it.next()),*keys);if(r.isNotBlank())return r}
+            }
+            is JSONArray->for(i in 0 until v.length()){val r=find(v.get(i),*keys);if(r.isNotBlank())return r}
+        }
+        return ""
+    }
+    return if(bsToAd){
+        find(o,"formatted").ifBlank{find(o,"date").ifBlank{extractIsoDate(raw).orEmpty()}}
+    }else{
+        find(o,"formatted").ifBlank{find(o,"date").ifBlank{
+            val y=find(o,"year");val m=find(o,"month");val d=find(o,"day");if(y.isNotBlank()&&m.isNotBlank()&&d.isNotBlank())"$y-${m.padStart(2,'0')}-${d.padStart(2,'0')}" else ""
+        }}
+    }
+}
 
 private fun parseCalendar(year:Int,month:Int,raw:String,firstAd:String?):CalendarMonth{
     val arr=mutableListOf<CalendarDay>()
