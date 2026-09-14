@@ -77,7 +77,11 @@ private val weekNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
 
 @Composable fun CalendarScreen(){
     val api=remember{ApiClient()}; var year by remember{mutableIntStateOf(2083)};var month by remember{mutableIntStateOf(6)};var selected by remember{mutableIntStateOf(1)};var data by remember{mutableStateOf(CalendarMonth(year,month,30))};var loading by remember{mutableStateOf(false)}
-    LaunchedEffect(year,month){loading=true;try{data=parseCalendar(year,month,api.month(year,month))}catch(_:Throwable){data=CalendarMonth(year,month,30)};loading=false;selected=selected.coerceIn(1,data.days)}
+    LaunchedEffect(year,month){loading=true;try{
+            val raw=api.month(year,month)
+            val firstAd=try{extractIsoDate(api.bsToAd(year,month,1))}catch(_:Throwable){null}
+            data=parseCalendar(year,month,raw,firstAd)
+        }catch(_:Throwable){data=CalendarMonth(year,month,30)};loading=false;selected=selected.coerceIn(1,data.days)}
     Column(Modifier.fillMaxSize()){BrandHeader("Calendar","Bikram Sambat")
         Row(Modifier.padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically){IconButton({if(month==1){year--;month=12}else month--}){Icon(Icons.Outlined.ChevronLeft,null)};Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally){Text("${monthNames[month-1]} $year",style=MaterialTheme.typography.titleLarge);if(loading)LinearProgressIndicator(Modifier.fillMaxWidth(.5f))};IconButton({if(month==12){year++;month=1}else month++}){Icon(Icons.Outlined.ChevronRight,null)}}
         TextButton({year=2083;month=6;selected=1},Modifier.align(Alignment.CenterHorizontally)){Text("Today")}
@@ -86,7 +90,7 @@ private val weekNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
         val entry=data.entries.firstOrNull{it.day==selected};Card(Modifier.padding(16.dp).fillMaxWidth(),shape=RoundedCornerShape(24.dp)){Column(Modifier.padding(18.dp)){Text("Selected date",fontWeight=FontWeight.Bold);Text("$selected ${monthNames[month-1]} $year",style=MaterialTheme.typography.headlineSmall);if(entry!=null){if(entry.ad.isNotBlank())Text("AD ${entry.ad}");if(entry.festival.isNotBlank())Text(entry.festival,color=MaterialTheme.colorScheme.primary);if(entry.tithi.isNotBlank())Text(entry.tithi,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}
 }
 
-@Composable fun CalendarGrid(data:CalendarMonth,selected:Int,onSelect:(Int)->Unit){val cells=List(data.startWeekday){null}+data.entries;LazyVerticalGrid(GridCells.Fixed(7),Modifier.padding(horizontal=12.dp).height(300.dp)){gridItems(cells){e->if(e==null)Box(Modifier.height(42.dp))else{val holiday=e.holiday||e.weekday==7;Box(Modifier.padding(2.dp).height(42.dp).fillMaxWidth().clickable{onSelect(e.day)},contentAlignment=Alignment.Center){Surface(shape=RoundedCornerShape(12.dp),color=when{selected==e.day->MaterialTheme.colorScheme.primary;holiday->MaterialTheme.colorScheme.errorContainer;else->MaterialTheme.colorScheme.surfaceVariant}){Column(Modifier.padding(horizontal=8.dp,vertical=5.dp),horizontalAlignment=Alignment.CenterHorizontally){Text("${e.day}",fontWeight=FontWeight.Bold,color=if(selected==e.day)MaterialTheme.colorScheme.onPrimary else Color.Unspecified);if(e.festival.isNotBlank())Text("•",color=MaterialTheme.colorScheme.tertiary)}}}}}}}
+@Composable fun CalendarGrid(data:CalendarMonth,selected:Int,onSelect:(Int)->Unit){val cells=List(data.startWeekday){null}+data.entries;LazyVerticalGrid(GridCells.Fixed(7),Modifier.padding(horizontal=12.dp).height(300.dp)){gridItems(cells){e->if(e==null)Box(Modifier.height(42.dp))else{val holiday=e.holiday||e.weekday==6;Box(Modifier.padding(2.dp).height(42.dp).fillMaxWidth().clickable{onSelect(e.day)},contentAlignment=Alignment.Center){Surface(shape=RoundedCornerShape(12.dp),color=when{selected==e.day->MaterialTheme.colorScheme.primary;holiday->MaterialTheme.colorScheme.errorContainer;else->MaterialTheme.colorScheme.surfaceVariant}){Column(Modifier.padding(horizontal=8.dp,vertical=5.dp),horizontalAlignment=Alignment.CenterHorizontally){Text("${e.day}",fontWeight=FontWeight.Bold,color=if(selected==e.day)MaterialTheme.colorScheme.onPrimary else Color.Unspecified);if(e.festival.isNotBlank())Text("•",color=MaterialTheme.colorScheme.tertiary)}}}}}}}
 
 @Composable fun Festivals(){val festivals=listOf("Nepali New Year" to "1 Baisakh","Buddha Jayanti" to "Baisakh","Teej" to "Bhadra","Constitution Day" to "3 Ashwin","Dashain" to "Ashwin–Kartik","Tihar" to "Kartik","Chhath Parva" to "Kartik","Holi" to "Falgun");Column(Modifier.fillMaxSize()){BrandHeader("Festivals & Holidays","Plan important Nepali dates");LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){columnItems(festivals){(n,d)->Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(22.dp)){Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.Event,null);Spacer(Modifier.width(14.dp));Column{Text(n,style=MaterialTheme.typography.titleMedium);Text(d,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}}}}
 
@@ -96,8 +100,61 @@ private val weekNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
 
 @Composable fun EventDialog(onSave:(Event)->Unit,onDismiss:()->Unit){var title by remember{mutableStateOf("")};var date by remember{mutableStateOf("2083-06-01")};var notes by remember{mutableStateOf("")};AlertDialog(onDismissRequest=onDismiss,title={Text("Add event")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(title,{title=it},label={Text("Title")},singleLine=true);OutlinedTextField(date,{date=it},label={Text("BS date")},singleLine=true);OutlinedTextField(notes,{notes=it},label={Text("Notes")})}},confirmButton={Button({if(title.isNotBlank())onSave(Event(System.currentTimeMillis(),title,notes,date))}){Text("Save")}},dismissButton={TextButton(onDismiss){Text("Cancel")}})}
 
-private fun parseCalendar(year:Int,month:Int,raw:String):CalendarMonth{val arr=mutableListOf<CalendarDay>();fun walk(v:Any?){when(v){is JSONObject->{var day=v.optInt("day",v.optInt("date",0));if(day in 1..31){val ad=v.optString("ad",v.optString("gregorian",v.optString("englishDate","")));val festival=v.optString("festival",v.optString("event",v.optString("name","")));val wd=v.optInt("weekday",0);val hol=v.optBoolean("holiday",false);val t=v.optString("tithi","");arr.add(CalendarDay(day,ad,wd,festival,hol,t))};val it=v.keys();while(it.hasNext())walk(v.get(it.next()))};is JSONArray->for(i in 0 until v.length())walk(v.get(i))}}
-walk(try{JSONObject(raw)}catch(_:Throwable){try{JSONArray(raw)}catch(_:Throwable){null}});val unique=arr.groupBy{it.day}.values.map{it.first()}.sortedBy{it.day};val days=unique.maxOfOrNull{it.day}?:30;val start=unique.firstOrNull()?.weekday?.let{if(it in 1..7)it-1 else 0}?:0;return CalendarMonth(year,month,days,start,unique.ifEmpty{(1..days).map{CalendarDay(it)}})}
+private fun parseCalendar(year:Int,month:Int,raw:String,firstAd:String?):CalendarMonth{
+    val arr=mutableListOf<CalendarDay>()
+    val root:Any?=try{JSONObject(raw)}catch(_:Throwable){try{JSONArray(raw)}catch(_:Throwable){null}}
+    fun text(o:JSONObject,vararg keys:String):String=keys.firstNotNullOfOrNull{key->
+        o.optString(key).takeIf{it.isNotBlank()}
+    } ?: ""
+    fun walk(v:Any?){
+        when(v){
+            is JSONObject->{
+                val day=parseDay(text(v,"n"),v.optInt("day",0))
+                if(day in 1..32){
+                    val weekday=v.optInt("d",v.optInt("weekday",0)).let{if(it in 1..7)it-1 else if(it in 0..6)it else 0}
+                    val festival=text(v,"f","festival","event","name")
+                    val holiday=v.optBoolean("h",v.optBoolean("holiday",false))
+                    val tithi=text(v,"t","tithi")
+                    val ad=if(firstAd!=null) addDays(firstAd,day-1) else text(v,"ad","gregorian","englishDate")
+                    arr.add(CalendarDay(day,ad,weekday,festival,holiday,tithi))
+                }
+                val it=v.keys();while(it.hasNext())walk(v.get(it.next()))
+            }
+            is JSONArray->for(i in 0 until v.length())walk(v.get(i))
+        }
+    }
+    walk(root)
+    val unique=arr.groupBy{it.day}.values.map{it.first()}.sortedBy{it.day}
+    val days=unique.maxOfOrNull{it.day} ?: 30
+    val start=unique.firstOrNull()?.weekday ?: 0
+    return CalendarMonth(year,month,days,start,unique.ifEmpty{(1..days).map{d->CalendarDay(d,if(firstAd!=null)addDays(firstAd,d-1) else "",(start+d-1)%7)}})
+}
+
+private fun parseDay(value:String,fallback:Int):Int{
+    if(value.isBlank()) return fallback
+    val normalized=value.map{c->
+        when(c){
+            '०'->'0';'१'->'1';'२'->'2';'३'->'3';'४'->'4';
+            '५'->'5';'६'->'6';'७'->'7';'८'->'8';'९'->'9';else->c
+        }
+    }.joinToString("")
+    return normalized.toIntOrNull() ?: fallback
+}
+
+private fun extractIsoDate(raw:String):String?{
+    val regex=Regex("\\b(\\d{4}-\\d{2}-\\d{2})\\b")
+    return regex.find(raw)?.groupValues?.get(1)
+}
+
+private fun addDays(iso:String,days:Int):String{
+    val f=SimpleDateFormat("yyyy-MM-dd",Locale.US)
+    f.isLenient=false
+    val d=f.parse(iso) ?: return iso
+    val cal=Calendar.getInstance(TimeZone.getTimeZone("UTC"),Locale.US).apply{time=d}
+    cal.add(Calendar.DAY_OF_MONTH,days)
+    return f.format(cal.time)
+}
+
 private fun extractSummary(raw:String):String{if(raw.isBlank())return "Unavailable";return try{val o=JSONObject(raw);listOf("formatted","bs","date","nepali","today").firstNotNullOfOrNull{key->o.optString(key).takeIf{it.isNotBlank()}}?:o.toString().replace("\\n"," ").take(220)}catch(_:Throwable){raw.replace("\\n"," ").take(220)}}
 private fun prefs(ctx:Context)=ctx.getSharedPreferences("events",Context.MODE_PRIVATE)
 private fun loadEvents():List<Event>{return emptyList()}
