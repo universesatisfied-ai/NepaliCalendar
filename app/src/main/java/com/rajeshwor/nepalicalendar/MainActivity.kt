@@ -137,7 +137,7 @@ private val weekNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
 }
 
 @Composable fun EventDialog(initial:Event?,onSave:(Event)->Unit,onDismiss:()->Unit){
-    var title by remember(initial){mutableStateOf(initial?.title? : "")}
+    var title by remember(initial){mutableStateOf(initial?.title ?: "")}
     var date by remember(initial){mutableStateOf(initial?.date ?: "2083-06-01")}
     var time by remember(initial){mutableStateOf(initial?.time ?: "")}
     var notes by remember(initial){mutableStateOf(initial?.notes ?: "")}
