@@ -168,7 +168,8 @@ private fun ScreenTitle(title: String, subtitle: String? = null) {
 
 @Composable
 private fun Home(onCalendar: () -> Unit, onConvert: () -> Unit, onFestivals: () -> Unit) {
-    val api = remember { ApiClient(LocalContext.current) }
+    val context = LocalContext.current
+    val api = remember(context) { ApiClient(context) }
     val scope = rememberCoroutineScope()
     var todayRaw by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
@@ -244,7 +245,8 @@ private fun HomeAction(label: String, icon: androidx.compose.ui.graphics.vector.
 
 @Composable
 private fun CalendarScreen() {
-    val api = remember { ApiClient(LocalContext.current) }
+    val context = LocalContext.current
+    val api = remember(context) { ApiClient(context) }
     var year by rememberSaveable { mutableIntStateOf(2083) }
     var month by rememberSaveable { mutableIntStateOf(6) }
     var selected by rememberSaveable { mutableIntStateOf(1) }
@@ -337,7 +339,8 @@ private fun CalendarGrid(data: CalendarMonth, selected: Int, onSelect: (Int) -> 
 
 @Composable
 private fun Festivals() {
-    val api = remember { ApiClient(LocalContext.current) }
+    val context = LocalContext.current
+    val api = remember(context) { ApiClient(context) }
     val scope = rememberCoroutineScope()
     var year by rememberSaveable { mutableIntStateOf(2083) }
     var month by rememberSaveable { mutableIntStateOf(6) }
@@ -390,7 +393,8 @@ private fun Festivals() {
 
 @Composable
 private fun Converter() {
-    val api = remember { ApiClient(LocalContext.current) }
+    val context = LocalContext.current
+    val api = remember(context) { ApiClient(context) }
     val scope = rememberCoroutineScope()
     var input by rememberSaveable { mutableStateOf("") }
     var bsToAd by rememberSaveable { mutableStateOf(true) }
