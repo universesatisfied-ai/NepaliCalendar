@@ -6,5 +6,9 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowNoTitle">true</item>
+        <item name="android:windowSplashScreenBackground">#18251D</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#18251D</item>
+        <item name="android:postSplashScreenTheme">@style/Theme.NepaliCalendar</item>
     </style>
 </resources>
