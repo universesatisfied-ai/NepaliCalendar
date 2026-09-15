@@ -168,7 +168,7 @@ private fun ScreenTitle(title: String, subtitle: String? = null) {
 
 @Composable
 private fun Home(onCalendar: () -> Unit, onConvert: () -> Unit, onFestivals: () -> Unit) {
-    val api = remember { ApiClient() }
+    val api = remember { ApiClient(LocalContext.current) }
     val scope = rememberCoroutineScope()
     var todayRaw by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
@@ -244,7 +244,7 @@ private fun HomeAction(label: String, icon: androidx.compose.ui.graphics.vector.
 
 @Composable
 private fun CalendarScreen() {
-    val api = remember { ApiClient() }
+    val api = remember { ApiClient(LocalContext.current) }
     var year by rememberSaveable { mutableIntStateOf(2083) }
     var month by rememberSaveable { mutableIntStateOf(6) }
     var selected by rememberSaveable { mutableIntStateOf(1) }
@@ -337,7 +337,7 @@ private fun CalendarGrid(data: CalendarMonth, selected: Int, onSelect: (Int) -> 
 
 @Composable
 private fun Festivals() {
-    val api = remember { ApiClient() }
+    val api = remember { ApiClient(LocalContext.current) }
     val scope = rememberCoroutineScope()
     var year by rememberSaveable { mutableIntStateOf(2083) }
     var month by rememberSaveable { mutableIntStateOf(6) }
@@ -390,7 +390,7 @@ private fun Festivals() {
 
 @Composable
 private fun Converter() {
-    val api = remember { ApiClient() }
+    val api = remember { ApiClient(LocalContext.current) }
     val scope = rememberCoroutineScope()
     var input by rememberSaveable { mutableStateOf("") }
     var bsToAd by rememberSaveable { mutableStateOf(true) }
@@ -468,7 +468,7 @@ private fun More(dark: Boolean, onDarkChanged: (Boolean) -> Unit) {
                     Text("Nepali Calendar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     Text("by Rajeshwor Maharjan", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(12.dp)); Divider(); Spacer(Modifier.height(12.dp))
-                    Text("Calendar data is retrieved from the configured online services. The app is designed to remain usable when a request fails.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Calendar data is retrieved from the configured online services. The app caches the latest successful calendar data for use when a request fails.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -519,6 +519,7 @@ private fun EventDialog(initial: Event?, onSave: (Event) -> Unit, onDismiss: () 
     var time by remember(initial) { mutableStateOf(initial?.time ?: "") }
     var notes by remember(initial) { mutableStateOf(initial?.notes ?: "") }
     var category by remember(initial) { mutableStateOf(initial?.category ?: "Personal") }
+    var reminder by remember(initial) { mutableStateOf(initial?.reminder ?: false) }
     var error by remember { mutableStateOf("") }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(if (initial == null) "Add event" else "Edit event") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -526,12 +527,13 @@ private fun EventDialog(initial: Event?, onSave: (Event) -> Unit, onDismiss: () 
             OutlinedTextField(date, { date = it }, Modifier.fillMaxWidth(), label = { Text("BS date · YYYY-MM-DD") }, singleLine = true)
             OutlinedTextField(time, { time = it }, Modifier.fillMaxWidth(), label = { Text("Time · optional") }, singleLine = true)
             OutlinedTextField(category, { category = it }, Modifier.fillMaxWidth(), label = { Text("Category") }, singleLine = true)
+            SettingRow("Reminder", reminder) { reminder = !reminder }
             OutlinedTextField(notes, { notes = it }, Modifier.fillMaxWidth(), label = { Text("Notes") }, minLines = 2, maxLines = 4)
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
         }
     }, confirmButton = { Button(onClick = {
         if (title.isBlank() || !Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(date.trim())) error = "Enter a title and valid BS date."
-        else onSave(Event(initial?.id ?: System.currentTimeMillis(), title.trim(), notes.trim(), date.trim(), time.trim(), category.trim().ifBlank { "Personal" }, initial?.color ?: 0xFF18251DL, initial?.reminder ?: false))
+        else onSave(Event(initial?.id ?: System.currentTimeMillis(), title.trim(), notes.trim(), date.trim(), time.trim(), category.trim().ifBlank { "Personal" }, initial?.color ?: 0xFF18251DL, reminder))
     }) { Text("Save") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
 }
 
