@@ -100,11 +100,15 @@ private val weekNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
 @Composable fun More(){
     val context=LocalContext.current
     var show by remember{mutableStateOf(false)}
+    var settings by remember{mutableStateOf(false)}
+    var dark by remember{mutableStateOf(false)}
+    var showHolidays by remember{mutableStateOf(true)}
     var editing by remember{mutableStateOf<Event?>(null)}
     var events by remember{mutableStateOf(loadEvents(context))}
     Column(Modifier.fillMaxSize()){
         BrandHeader("More","Settings, events & information")
         LazyColumn(contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+            item{ActionCard("Settings","⚙"){settings=true}}
             item{ActionCard("Personal events","+"){editing=null;show=true}}
             item{Text("Saved events",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=10.dp))}
             if(events.isEmpty()) item{Text("No personal events yet.",color=MaterialTheme.colorScheme.onSurfaceVariant)}
@@ -125,6 +129,7 @@ private val weekNames = listOf("Sun","Mon","Tue","Wed","Thu","Fri","Sat")
             item{Card(Modifier.fillMaxWidth()){Column(Modifier.padding(18.dp)){Text("Nepali Calendar",style=MaterialTheme.typography.titleLarge);Text("Developed by Rajeshwor Maharjan");Text("Jetpack Compose + Material 3",color=MaterialTheme.colorScheme.onSurfaceVariant)}}}
         }
     }
+    if(settings){AlertDialog(onDismissRequest={settings=false},title={Text("Settings")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Dark theme");Switch(dark,{dark=it})};Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Show holidays");Switch(showHolidays,{showHolidays=it})};Text("Nepali Calendar",color=MaterialTheme.colorScheme.onSurfaceVariant);Text("Developed by Rajeshwor Maharjan",color=MaterialTheme.colorScheme.onSurfaceVariant)}},confirmButton={TextButton({settings=false}){Text("Done")}})}
     if(show){EventDialog(initial=editing,onSave={e->
         events=if(events.any{it.id==e.id})events.map{if(it.id==e.id)e else it}else events+e
         saveEvents(context,events);show=false
