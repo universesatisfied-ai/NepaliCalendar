@@ -372,7 +372,7 @@ private fun Festivals() {
         item { FilterChip(holidaysOnly, { holidaysOnly = !holidaysOnly }, label = { Text("Holidays only") }, leadingIcon = if (holidaysOnly) ({ Icon(Icons.Outlined.Check, null) }) else null, modifier = Modifier.padding(horizontal = 16.dp)) }
         if (loading) item { Box(Modifier.fillMaxWidth().padding(28.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
         else if (filtered.isEmpty()) item { StatusCard("No matching festivals were found for this month.") }
-        else items(filtered) { entry ->
+        else columnItems(filtered) { entry ->
             Card(Modifier.padding(horizontal = 16.dp).fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
                 Row(Modifier.padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
                     Surface(Modifier.size(44.dp), shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Event, null, tint = MaterialTheme.colorScheme.primary) } }
@@ -475,11 +475,21 @@ private fun More(dark: Boolean, onDarkChanged: (Boolean) -> Unit) {
     }
 
     if (showSettings) SettingsDialog(dark, onDarkChanged) { showSettings = false }
-    if (showEventDialog) EventDialog(editing) { saved ->
-        events = if (events.any { it.id == saved.id }) events.map { if (it.id == saved.id) saved else it } else events + saved
-        saveEvents(context, events)
-        showEventDialog = false
-    } onDismiss = { showEventDialog = false }
+    if (showEventDialog) {
+        EventDialog(
+            initial = editing,
+            onSave = { saved ->
+                events = if (events.any { it.id == saved.id }) {
+                    events.map { if (it.id == saved.id) saved else it }
+                } else {
+                    events + saved
+                }
+                saveEvents(context, events)
+                showEventDialog = false
+            },
+            onDismiss = { showEventDialog = false }
+        )
+    }
 }
 
 @Composable
